@@ -128,7 +128,7 @@ class WingPSO:
 # Usage for a Cruise Regime
 # Bounds: Camber (0-6%), Position (20-50%), Thickness (8-15%)
 wing_bounds = [(0, 0.06), (0.2, 0.5), (0.08, 0.15)]
-optimizer = WingPSO(num_particles=30, bounds=wing_bounds, iterations=100)
+optimizer = WingPSO(num_particles=30, bounds=wing_bounds, iterations=10)
 best_shape, best_ld = optimizer.optimize()
 
 print(f"Optimal Wing Geometry: {best_shape}")

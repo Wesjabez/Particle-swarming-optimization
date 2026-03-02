@@ -1,0 +1,13 @@
+NACA 6508
+PANE
+OPER
+Visc 500000
+Mach 0.2
+ITER 100
+PACC
+polar_output.txt
+
+ALFA 4.0
+PACC
+
+QUIT
