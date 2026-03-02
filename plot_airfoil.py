@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-# Your optimized parameters
+
 m = 0.06        # max camber
 p = 0.47642227  # camber position
 t = 0.08        # thickness
@@ -19,7 +19,7 @@ yt = 5 * t * (
     - 0.1015 * x**4
 )
 
-# Camber line yc and its slope dyc/dx
+
 yc = np.zeros_like(x)
 dyc_dx = np.zeros_like(x)
 

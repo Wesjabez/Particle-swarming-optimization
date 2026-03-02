@@ -11,13 +11,19 @@ class Particle:
         self.pbest_value = float('-inf') # Initializing for maximization (L/D ratio)
 
 class WingPSO:
-    def __init__(self, num_particles, bounds, iterations):
+    def __init__(self, num_particles, bounds, iterations, mach, re, alpha):
         self.num_particles = num_particles
         self.bounds = np.array(bounds)
         self.iterations = iterations
         self.swarm = [Particle(bounds) for _ in range(num_particles)]
         self.gbest_pos = np.zeros(len(bounds))
         self.gbest_value = float('-inf')
+
+        #defines the flight regime
+        self.mach = mach
+        self.re = re
+        self.alpha = alpha
+
 
     def fitness_function(self, params):
         """
@@ -46,13 +52,13 @@ class WingPSO:
             f.write(f"NACA {naca_code}\n")
             f.write("PANE\n")          # Smooth the paneling (important for optimization)
             f.write("OPER\n")
-            f.write("Visc 500000\n")   # Set Reynolds number (adjust for your flight regime)
-            f.write("Mach 0.2\n")      # Set Mach number 
+            f.write("Visc {self.re}\n")   # Set Reynolds number (adjust for your flight regime)
+            f.write("Mach {self.mach}\n")      # Set Mach number 
             f.write("ITER 100\n")      # Increase iteration limit for stubborn shapes
             f.write("PACC\n")          # Start accumulating polar data
             f.write(f"{polar_file}\n") # File to save polar data
             f.write("\n")              # No dump file
-            f.write("ALFA 4.0\n")      # Run at an Angle of Attack of 4 degrees
+            f.write("ALFA {self.alpha}\n")      # Run at an Angle of Attack of 4 degrees
             f.write("PACC\n")          # Stop accumulating
             f.write("\nQUIT\n")
 
@@ -125,11 +131,65 @@ class WingPSO:
 
         return self.gbest_pos, self.gbest_value
 
+flight_regimes = {
+    "Takeoff": 
+    {
+        "mach": 0.2,
+        "re": 500000,
+        "alpha": 8.0,
+        "bounds":[(0.02,0.08),(0.2,0.5),(0.10,0.15)]
+    },
+    "cruise":
+    {
+        "mach":0.6,
+        "re":200000,
+        "alpha":2.0,
+        "bounds":[(0.0,0.04),(0.3,0.5),(0.08,0.12)]
+    },
+    "High-speed dash":
+    {
+        "mach":0.8,
+        "re":300000,
+        "alpha":0.3,
+        "bounds":[(0.02,0.08),(0.2,0.5),(0.10,0.15)]
+    },
+    "landing":
+    {
+        "mach":0.1,
+        "re":600000,
+        "alpha":10.0,
+        "bounds":[(),(),()]
+    }
+}
+
+morphing_lookup_table = {}
+
+print("starting Multi-Regime Morphing Wing Optimization..\n")
+
+for regime_name, conditions in flight_regimes.items():
+    print(f"--- Optimization for {regime_name} ---")
+
+    optimizer = WingPSO (
+        num_particles= 20,
+        bounds = conditions["bounds"],
+        iterations = 50,
+        mach = conditions["mach"],
+        re = conditions["re"],
+        alpha =  conditions["alpha"] 
+    )
+
+    best_shape, best_ld = optimizer.optimize()
+
+    morphing_lookup_table[regime_name] = {
+        "shape": best_shape,
+        "L/D": best_ld
+    }
+
+    print(f"Optimal Geometry [camber, Position, Thickness]: {best_shape}")
+    print(f"Maximized L/D: {best_ld:.2}\n")
+
+print("Optimization complete!")
+for regime, data in morphing_lookup_table.items():
+    print(f"{regime}: {data['shape']} at L/D = {data['L/D']:.2f}")
 # Usage for a Cruise Regime
 # Bounds: Camber (0-6%), Position (20-50%), Thickness (8-15%)
-wing_bounds = [(0, 0.06), (0.2, 0.5), (0.08, 0.15)]
-optimizer = WingPSO(num_particles=30, bounds=wing_bounds, iterations=10)
-best_shape, best_ld = optimizer.optimize()
-
-print(f"Optimal Wing Geometry: {best_shape}")
-print(f"Maximized L/D: {best_ld}")
