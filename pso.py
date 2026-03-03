@@ -1,6 +1,7 @@
 import numpy as np
 import os
 import subprocess
+import csv
 
 class Particle:
     def __init__(self, bounds):
@@ -52,13 +53,13 @@ class WingPSO:
             f.write(f"NACA {naca_code}\n")
             f.write("PANE\n")          # Smooth the paneling (important for optimization)
             f.write("OPER\n")
-            f.write("Visc {self.re}\n")   # Set Reynolds number (adjust for your flight regime)
-            f.write("Mach {self.mach}\n")      # Set Mach number 
+            f.write(f"Visc {self.re}\n")   # Set Reynolds number (adjust for your flight regime)
+            f.write(f"Mach {self.mach}\n")      # Set Mach number 
             f.write("ITER 100\n")      # Increase iteration limit for stubborn shapes
             f.write("PACC\n")          # Start accumulating polar data
             f.write(f"{polar_file}\n") # File to save polar data
             f.write("\n")              # No dump file
-            f.write("ALFA {self.alpha}\n")      # Run at an Angle of Attack of 4 degrees
+            f.write(f"ALFA {self.alpha}\n")      # Run at an Angle of Attack of 4 degrees
             f.write("PACC\n")          # Stop accumulating
             f.write("\nQUIT\n")
 
@@ -158,7 +159,7 @@ flight_regimes = {
         "mach":0.1,
         "re":600000,
         "alpha":10.0,
-        "bounds":[(),(),()]
+        "bounds":[(0.04, 0.08), (0.2, 0.5), (0.10, 0.15)]
     }
 }
 
@@ -172,7 +173,7 @@ for regime_name, conditions in flight_regimes.items():
     optimizer = WingPSO (
         num_particles= 20,
         bounds = conditions["bounds"],
-        iterations = 50,
+        iterations = 5,
         mach = conditions["mach"],
         re = conditions["re"],
         alpha =  conditions["alpha"] 
@@ -191,5 +192,20 @@ for regime_name, conditions in flight_regimes.items():
 print("Optimization complete!")
 for regime, data in morphing_lookup_table.items():
     print(f"{regime}: {data['shape']} at L/D = {data['L/D']:.2f}")
+
+csv_filename = "morphing_lookup_table.csv"
+
+with open(csv_filename, mode = 'w', newline='') as file:
+    writer = csv.writer(file)
+    writer.writerow(["Regime", "Max_camber", "Camber_Position", "Thickness","L_D"])
+
+    for regime, data in morphing_lookup_table.items():
+        shape = data['shape']
+        ld = data['L/D']
+
+        print(f"{regime}: {shape} at L/D = {ld:.2f}")
+
+        writer.writerow([shape[0],shape[1],shape[2],ld])
+print(f"success. lookup table saved to {csv_filename}")
 # Usage for a Cruise Regime
 # Bounds: Camber (0-6%), Position (20-50%), Thickness (8-15%)

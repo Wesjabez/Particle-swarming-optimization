@@ -1,13 +1,13 @@
-NACA 6508
+NACA 5310
 PANE
 OPER
-Visc 500000
-Mach 0.2
+Visc 600000
+Mach 0.1
 ITER 100
 PACC
 polar_output.txt
 
-ALFA 4.0
+ALFA 10.0
 PACC
 
 QUIT
