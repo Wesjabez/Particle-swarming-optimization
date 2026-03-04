@@ -205,7 +205,7 @@ with open(csv_filename, mode = 'w', newline='') as file:
 
         print(f"{regime}: {shape} at L/D = {ld:.2f}")
 
-        writer.writerow([shape[0],shape[1],shape[2],ld])
+        writer.writerow([regime,shape[0],shape[1],shape[2],ld])
 print(f"success. lookup table saved to {csv_filename}")
 # Usage for a Cruise Regime
 # Bounds: Camber (0-6%), Position (20-50%), Thickness (8-15%)
