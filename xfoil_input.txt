@@ -1,13 +1,12 @@
-NACA 7210
+LOAD current_morphed.dat
 PANE
 OPER
-Visc 600000
-Mach 0.1
-ITER 100
+VISC 600000
+ITER 300
 PACC
 polar_output.txt
 
-ALFA 10.0
+ASEQ 0 10.0 0.5
 PACC
 
 QUIT
