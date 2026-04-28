@@ -3,6 +3,8 @@ import os
 import subprocess
 import csv
 import shutil
+import matplotlib.pyplot as plt
+from plot_airfoil import plot_base_vs_morphed, plot_overlaid_airfoils
 
 # each particle represents each airfoil geometry
 class Particle:
@@ -56,6 +58,7 @@ class WingPSO:
         self.swarm = [Particle(bounds) for _ in range(num_particles)]
         self.gbest_pos = np.zeros(len(bounds))
         self.gbest_value = float('-inf')
+        self.gbest_positions = []
 
         #defines the flight regime
         self.mach = mach
@@ -82,8 +85,7 @@ class WingPSO:
 
         # XFOIL interaction
         with open(input_file, "w") as f:
-    # Remove the PLOP block entirely — on Linux without a display,
-    # XFOIL compiled without X11 won't try to draw anyway.
+    
             
             f.write(f"LOAD {dat_file}\n")
             f.write("PANE\n")
@@ -100,7 +102,7 @@ class WingPSO:
             f.write("\nQUIT\n")
 
         try:
-            # --- THE FIX: Removed xvfb-run. PLOP G-F is all we need. ---
+            
             subprocess.run(["xfoil"], 
                            stdin=open(input_file, "r"), 
                            stdout=open("xfoil_debug.log", "w"), # Hides the messy terminal output
@@ -109,8 +111,6 @@ class WingPSO:
         except subprocess.TimeoutExpired:
             return 0.0 
 
-        # --- THE FIX: Read the polar file from the BOTTOM UP ---
-        # This guarantees we evaluate the target alpha, not just a random step in the ladder
         try:
             with open(polar_file, "r") as f:
                 lines = f.readlines()
@@ -159,8 +159,13 @@ class WingPSO:
         except Exception:
             return 0.0
 
+
+    
     def optimize(self, w=0.5, c1=1.5, c2=2.0):
+        convergence_history = []
         for i in range(self.iterations):
+
+ 
             for p in self.swarm:
                 
                 current_fitness = self.fitness_function(p.position)
@@ -174,6 +179,9 @@ class WingPSO:
                 if current_fitness > self.gbest_value:
                     self.gbest_value = current_fitness
                     self.gbest_pos = np.copy(p.position)
+                    self.gbest_positions.append((self.gbest_pos, self.gbest_value))
+
+            convergence_history.append(self.gbest_value)
 
             # Update Velocity and Position
             for p in self.swarm:
@@ -189,7 +197,7 @@ class WingPSO:
                 # 5. Boundary Constraints 
                 p.position = np.clip(p.position, self.bounds[:, 0], self.bounds[:, 1])
 
-        return self.gbest_pos, self.gbest_value
+        return self.gbest_pos, self.gbest_value, convergence_history
 
 # dummy parameters we pass to the wing pso class, 
 flight_regimes = {
@@ -245,13 +253,13 @@ for regime_name, conditions in flight_regimes.items():
     optimizer = WingPSO (
         num_particles= 20,
         bounds = conditions["bounds"],
-        iterations = 5,
+        iterations = 10,
         mach = conditions["mach"],
         re = conditions["re"],
         alpha =  conditions["alpha"] 
     )
 
-    best_shape, best_ld = optimizer.optimize()
+    best_shape, best_ld, convergence = optimizer.optimize()
     
     # best_shape is an array like [12.45]. We extract the actual number.
     best_angle = best_shape[0]
@@ -263,6 +271,26 @@ for regime_name, conditions in flight_regimes.items():
 
     print(f"Optimal Deflection Angle: {best_angle:.2f} degrees")
     print(f"Maximized L/D: {best_ld:.2f}")
+
+    # Plot convergence for this regime
+    plt.figure()
+    plt.plot(convergence)
+    plt.xlabel("Iterations")
+    plt.ylabel("Best L/D Value")
+    plt.title(f"Convergence Curve for {regime_name}")
+    safe_name = regime_name.replace(" ", "_").replace("-", "_").lower()
+    plt.savefig(f"convergence_{safe_name}.png")
+    plt.close()
+
+    # Generate the final morphed airfoil with optimal deflection angle
+    final_morphed_file = f"final_morphed_{safe_name}.dat"
+    generate_smooth_airfoil(best_angle, filename=final_morphed_file)
+    
+    # Plot comparisons: base NACA 4212 vs final optimized morphed airfoil
+    print(f"Generating airfoil comparison visualizations for {regime_name}...")
+    plot_base_vs_morphed("naca4212.dat", final_morphed_file, regime_name, best_angle)
+    plot_overlaid_airfoils("naca4212.dat", final_morphed_file, regime_name, best_angle, best_ld)
+    print()
 
     # --- HARDWARE ACTUATION ---
     target_duty = angle_to_duty(best_angle)
@@ -305,3 +333,4 @@ with open(csv_filename, mode='w', newline='') as file:
         writer.writerow([regime, angle, ld])
 
 print(f"Success. Lookup table saved to {csv_filename}")
+
