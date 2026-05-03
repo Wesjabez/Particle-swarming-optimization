@@ -1,0 +1,12 @@
+LOAD extreme_25.0.dat
+PANE
+OPER
+VISC 200000
+ITER 300
+PACC
+temp_polar.txt
+
+ASEQ 0 5.0 0.5
+PACC
+
+QUIT

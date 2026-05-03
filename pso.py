@@ -53,6 +53,47 @@ def generate_smooth_airfoil(deflection_angle, filename="current_morphed.dat"):
     return filename
 
 
+def check_airfoil_geometry(filename):
+    """
+    Check for self-intersecting panels and infinite gradients in the airfoil.
+    Returns True if geometry is valid, False otherwise.
+    """
+    data = np.loadtxt(filename, skiprows=1)
+    x, y = data[:, 0], data[:, 1]
+    
+    # Check for infinite gradients (vertical lines)
+    for i in range(len(x) - 1):
+        dx = x[i+1] - x[i]
+        if abs(dx) < 1e-6:  # Nearly vertical
+            return False
+    
+    # Find the leading edge (min x)
+    le_idx = np.argmin(x)
+    
+    # Upper surface: from TE to LE
+    upper_x = x[:le_idx+1]
+    upper_y = y[:le_idx+1]
+    
+    # Lower surface: from LE to TE
+    lower_x = x[le_idx:]
+    lower_y = y[le_idx:]
+    
+    # Check for self-intersection between upper and lower surfaces
+    def lines_intersect(p1, p2, p3, p4):
+        def ccw(A, B, C):
+            return (C[1] - A[1]) * (B[0] - A[0]) > (B[1] - A[1]) * (C[0] - A[0])
+        return ccw(p1, p3, p4) != ccw(p2, p3, p4) and ccw(p1, p2, p3) != ccw(p1, p2, p4)
+    
+    # Check upper-lower intersections
+    for i in range(len(upper_x) - 1):
+        for j in range(len(lower_x) - 1):
+            if lines_intersect((upper_x[i], upper_y[i]), (upper_x[i+1], upper_y[i+1]),
+                              (lower_x[j], lower_y[j]), (lower_x[j+1], lower_y[j+1])):
+                return False
+    
+    return True
+
+
 class WingPSO:
     def __init__(self, num_particles, bounds, iterations, mach, re, alpha):
         self.num_particles = num_particles
@@ -85,7 +126,11 @@ class WingPSO:
         
         dat_file = "current_morphed.dat"
         generate_smooth_airfoil(deflection_angle, filename=dat_file)
-
+        
+        # Check geometry validity
+        if not check_airfoil_geometry(dat_file):
+            return 0.0  # Penalize invalid geometries
+        
         # XFOIL interaction
         with open(input_file, "w") as f:
     
