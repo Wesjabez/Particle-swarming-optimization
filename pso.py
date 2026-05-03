@@ -6,6 +6,9 @@ import shutil
 import matplotlib.pyplot as plt
 from plot_airfoil import plot_base_vs_morphed, plot_overlaid_airfoils
 
+BASE_AIRFOIL_NAME = "NACA 4412"
+BASE_DAT_FILE = "naca4412.dat"
+
 # each particle represents each airfoil geometry
 class Particle:
     def __init__(self, bounds):
@@ -21,14 +24,14 @@ def generate_smooth_airfoil(deflection_angle, filename="current_morphed.dat"):
     Bypasses XFOIL's internal geometry engine by mathematically calculating 
     a smooth, continuous flexural curve using NumPy.
     """
-    # 1. Ensure we have the base NACA 4212 coordinates to work with
-    if not os.path.exists("naca4212.dat"):
+    # 1. Ensure we have the base NACA 4412 coordinates to work with
+    if not os.path.exists(BASE_DAT_FILE):
         with open("gen_base.txt", "w") as f:
-            f.write("NACA 4212\nSAVE naca4212.dat\n\nQUIT\n")
+            f.write(f"{BASE_AIRFOIL_NAME}\nSAVE {BASE_DAT_FILE}\n\nQUIT\n")
         subprocess.run(["xfoil"], stdin=open("gen_base.txt", "r"), stdout=subprocess.DEVNULL)
 
     # 2. Load the base coordinates
-    data = np.loadtxt("naca4212.dat", skiprows=1)
+    data = np.loadtxt(BASE_DAT_FILE, skiprows=1)
     x, y = data[:, 0], data[:, 1]
     new_y = np.copy(y)
     
@@ -213,7 +216,7 @@ flight_regimes = {
         "mach":0.5,
         "re":200000,
         "alpha":2.0,
-        "bounds":[(-5,8)]
+        "bounds":[(-2,6)]
     },
     "High-speed dash":
     {
@@ -253,7 +256,7 @@ for regime_name, conditions in flight_regimes.items():
     optimizer = WingPSO (
         num_particles= 20,
         bounds = conditions["bounds"],
-        iterations = 10,
+        iterations = 50,
         mach = conditions["mach"],
         re = conditions["re"],
         alpha =  conditions["alpha"] 
@@ -271,7 +274,6 @@ for regime_name, conditions in flight_regimes.items():
 
     print(f"Optimal Deflection Angle: {best_angle:.2f} degrees")
     print(f"Maximized L/D: {best_ld:.2f}")
-
     # Plot convergence for this regime
     plt.figure()
     plt.plot(convergence)
@@ -286,10 +288,10 @@ for regime_name, conditions in flight_regimes.items():
     final_morphed_file = f"final_morphed_{safe_name}.dat"
     generate_smooth_airfoil(best_angle, filename=final_morphed_file)
     
-    # Plot comparisons: base NACA 4212 vs final optimized morphed airfoil
+    # Plot comparisons: base NACA 4412 vs final optimized morphed airfoil
     print(f"Generating airfoil comparison visualizations for {regime_name}...")
-    plot_base_vs_morphed("naca4212.dat", final_morphed_file, regime_name, best_angle)
-    plot_overlaid_airfoils("naca4212.dat", final_morphed_file, regime_name, best_angle, best_ld)
+    plot_base_vs_morphed(BASE_DAT_FILE, final_morphed_file, regime_name, best_angle)
+    plot_overlaid_airfoils(BASE_DAT_FILE, final_morphed_file, regime_name, best_angle, best_ld)
     print()
 
     # --- HARDWARE ACTUATION ---

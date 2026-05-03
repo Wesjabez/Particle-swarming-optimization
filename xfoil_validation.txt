@@ -1,4 +1,4 @@
-NACA 0012
+LOAD validation_morphed.dat
 PANE
 OPER
 Visc 3000000

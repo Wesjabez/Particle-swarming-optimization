@@ -1,4 +1,4 @@
-NACA 4212
-SAVE naca4212.dat
+NACA 4412
+SAVE naca4412.dat
 
 QUIT

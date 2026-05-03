@@ -1,0 +1,12 @@
+LOAD validation_naca4412_uiuc.dat
+PANE
+OPER
+VISC 200000
+ITER 200
+PACC
+polar_validation_uiuc.txt
+
+ASEQ 0.0 12.0 1.0
+PACC
+
+QUIT

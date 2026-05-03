@@ -17,7 +17,7 @@ def load_airfoil_coordinates(filename):
 
 def plot_base_vs_morphed(base_filename, morphed_filename, regime_name, deflection_angle):
     """
-    Plots the base NACA 4212 and morphed airfoil side-by-side for comparison.
+    Plots the base NACA 4412 and morphed airfoil side-by-side for comparison.
     """
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
     
@@ -34,11 +34,11 @@ def plot_base_vs_morphed(base_filename, morphed_filename, regime_name, deflectio
         return
     
     # Plot base airfoil (left)
-    ax1.fill(x_base, y_base, alpha=0.3, color='blue', label='Base NACA 4212')
+    ax1.fill(x_base, y_base, alpha=0.3, color='blue', label='Base NACA 4412')
     ax1.plot(x_base, y_base, 'b-', linewidth=2.5)
     ax1.set_xlabel("Chord Position (x/c)", fontsize=11)
     ax1.set_ylabel("Thickness (y/c)", fontsize=11)
-    ax1.set_title("Base NACA 4212", fontsize=12, fontweight='bold')
+    ax1.set_title("Base NACA 4412", fontsize=12, fontweight='bold')
     ax1.grid(True, linestyle=':', alpha=0.6)
     ax1.axis('equal')
     ax1.legend(fontsize=10)
@@ -82,7 +82,7 @@ def plot_overlaid_airfoils(base_filename, morphed_filename, regime_name, deflect
         return
     
     # Plot both
-    ax.plot(x_base, y_base, 'b-', linewidth=2.5, label='Base NACA 4212', alpha=0.8)
+    ax.plot(x_base, y_base, 'b-', linewidth=2.5, label='Base NACA 4412', alpha=0.8)
     ax.fill(x_base, y_base, alpha=0.15, color='blue')
     
     ax.plot(x_morph, y_morph, 'r-', linewidth=2.5, label=f'Optimized Morphed (δ={deflection_angle:.2f}°)', alpha=0.8)
