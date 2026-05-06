@@ -55,42 +55,33 @@ def generate_smooth_airfoil(deflection_angle, filename="current_morphed.dat"):
 
 def check_airfoil_geometry(filename):
     """
-    Check for self-intersecting panels and infinite gradients in the airfoil.
+    Check that the airfoil coordinate file is formatted correctly and does not
+    contain degenerate consecutive points.
     Returns True if geometry is valid, False otherwise.
     """
-    data = np.loadtxt(filename, skiprows=1)
+    try:
+        data = np.loadtxt(filename, skiprows=1)
+    except Exception as e:
+        print(f"  [DEBUG] Failed to read airfoil file '{filename}': {e}")
+        return False
+
+    if data.ndim != 2 or data.shape[1] != 2 or len(data) < 3:
+        print(f"  [DEBUG] Invalid airfoil file shape: {data.shape}")
+        return False
+
     x, y = data[:, 0], data[:, 1]
-    
-    # Check for infinite gradients (vertical lines)
-    for i in range(len(x) - 1):
-        dx = x[i+1] - x[i]
-        if abs(dx) < 1e-6:  # Nearly vertical
-            return False
-    
-    # Find the leading edge (min x)
-    le_idx = np.argmin(x)
-    
-    # Upper surface: from TE to LE
-    upper_x = x[:le_idx+1]
-    upper_y = y[:le_idx+1]
-    
-    # Lower surface: from LE to TE
-    lower_x = x[le_idx:]
-    lower_y = y[le_idx:]
-    
-    # Check for self-intersection between upper and lower surfaces
-    def lines_intersect(p1, p2, p3, p4):
-        def ccw(A, B, C):
-            return (C[1] - A[1]) * (B[0] - A[0]) > (B[1] - A[1]) * (C[0] - A[0])
-        return ccw(p1, p3, p4) != ccw(p2, p3, p4) and ccw(p1, p2, p3) != ccw(p1, p2, p4)
-    
-    # Check upper-lower intersections
-    for i in range(len(upper_x) - 1):
-        for j in range(len(lower_x) - 1):
-            if lines_intersect((upper_x[i], upper_y[i]), (upper_x[i+1], upper_y[i+1]),
-                              (lower_x[j], lower_y[j]), (lower_x[j+1], lower_y[j+1])):
-                return False
-    
+    if not np.isfinite(x).all() or not np.isfinite(y).all():
+        print("  [DEBUG] Airfoil contains non-finite coordinates")
+        return False
+
+    # Check for duplicate consecutive points and degenerate segments
+    dx = np.diff(x)
+    dy = np.diff(y)
+    duplicate_mask = np.isclose(dx, 0.0, atol=1e-8) & np.isclose(dy, 0.0, atol=1e-8)
+    if np.any(duplicate_mask):
+        print("  [DEBUG] Airfoil contains duplicate consecutive points")
+        return False
+
     return True
 
 
@@ -139,72 +130,77 @@ class WingPSO:
             f.write("PANE\n")
             f.write("OPER\n")
             f.write(f"VISC {self.re}\n")
+            f.write(f"MACH {self.mach}\n")
             f.write("ITER 300\n")
             f.write("PACC\n")
             f.write(f"{polar_file}\n")
             f.write("\n")
-            
             f.write(f"ASEQ 0 {self.alpha} 0.5\n")
-                
             f.write("PACC\n")
             f.write("\nQUIT\n")
 
         try:
-            
-            subprocess.run(["xfoil"], 
-                           stdin=open(input_file, "r"), 
-                           stdout=open("xfoil_debug.log", "w"), # Hides the messy terminal output
-                           stderr=subprocess.STDOUT, 
-                           timeout=15) 
+            with open(input_file, "r") as stdin_file, open("xfoil_debug.log", "w") as stdout_file:
+                proc = subprocess.run(
+                    ["xfoil"],
+                    stdin=stdin_file,
+                    stdout=stdout_file,
+                    stderr=subprocess.STDOUT,
+                    timeout=15
+                )
         except subprocess.TimeoutExpired:
-            return 0.0 
+            print("  [DEBUG] XFOIL timed out")
+            return 0.0
+
+        if proc.returncode != 0:
+            print(f"  [DEBUG] XFOIL returned non-zero exit code: {proc.returncode}")
+            if os.path.exists("xfoil_debug.log"):
+                print("  [DEBUG] See xfoil_debug.log for details")
+            return 0.0
+
+        if not os.path.exists(polar_file):
+            print("  [DEBUG] Polar file was not created")
+            if os.path.exists("xfoil_debug.log"):
+                print("  [DEBUG] See xfoil_debug.log for details")
+            return 0.0
 
         try:
             with open(polar_file, "r") as f:
                 lines = f.readlines()
-            
-            # Log how many data lines we actually got
-            data_lines = [l for l in lines[12:] if len(l.split()) >= 3]
-            print(f"  [DEBUG] Polar file has {len(data_lines)} data lines")
-            
-            for line in reversed(lines):
+
+            aerodynamic_lines = []
+            for line in lines:
                 parts = line.split()
                 if len(parts) >= 3:
                     try:
+                        alpha_val = float(parts[0])
                         cl = float(parts[1])
                         cd = float(parts[2])
-                        if 0.0001 < cd < 0.2:
-                            ld = cl / cd
-                            if ld < 200:
-                                return ld
                     except ValueError:
                         continue
-            return 0.0
+                    aerodynamic_lines.append((alpha_val, cl, cd))
+
+            print(f"  [DEBUG] Polar file has {len(aerodynamic_lines)} aerodynamic data lines")
+
+            max_ld = 0.0
+            target_ld = None
+            for alpha_val, cl, cd in aerodynamic_lines:
+                if 0.0001 < cd < 0.2:
+                    ld = cl / cd
+                    if ld > max_ld and ld < 200:
+                        max_ld = ld
+
+                    if abs(alpha_val - self.alpha) < 1e-3:
+                        target_ld = ld
+
+            if target_ld is not None:
+                print(f"  [DEBUG] Target alpha {self.alpha:.3f} deg L/D = {target_ld:.3f}")
+                return target_ld
+
+            print(f"  [DEBUG] No exact target alpha row found; returning max L/D = {max_ld:.3f}")
+            return max_ld
         except Exception as e:
             print(f"  [DEBUG] Parser exception: {e}")
-            return 0.0
-
-        try:
-            with open(polar_file, "r") as f:
-                lines = f.readlines()
-                
-                max_ld = 0.0
-                # XFOIL data always starts at line 13 (index 12)
-                for line in lines[12:]:
-                    data = line.split()
-                    if len(data) >= 3:
-                        cl = float(data[1])
-                        cd = float(data[2])
-                        
-                        # Filter out extreme drag and failed convergence artifacts
-                        if cd > 0.0001 and cd < 0.2:
-                            ld = cl / cd
-                            if ld > max_ld and ld < 200:
-                                max_ld = ld
-                
-                return max_ld
-                
-        except Exception:
             return 0.0
 
 
@@ -251,29 +247,22 @@ class WingPSO:
 flight_regimes = {
     "Takeoff": 
     {
-        "mach": 0.2,
-        "re": 500000,
+        "mach": 0.045,
+        "re": 200000,
         "alpha": 8.0,
         "bounds":[(0,15)]
     },
     "cruise":
     {
-        "mach":0.5,
-        "re":200000,
+        "mach":0.073,
+        "re":333000,
         "alpha":2.0,
         "bounds":[(-2,6)]
     },
-    "High-speed dash":
-    {
-        "mach":0.6,
-        "re":300000,
-        "alpha":0.3,
-        "bounds":[(-10,2)]
-    },
     "landing":
     {
-        "mach":0.1,
-        "re":600000,
+        "mach":0.035,
+        "re":160000,
         "alpha":10.0,
         "bounds":[(5,20)]
     }

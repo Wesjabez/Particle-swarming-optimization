@@ -1,7 +1,8 @@
 LOAD current_morphed.dat
 PANE
 OPER
-VISC 600000
+VISC 160000
+MACH 0.035
 ITER 300
 PACC
 polar_output.txt
